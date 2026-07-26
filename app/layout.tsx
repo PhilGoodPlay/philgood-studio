@@ -13,9 +13,47 @@ const geistMono = Geist_Mono({
 });
 
 export const metadata: Metadata = {
-  title: "PhilGood Studio | Création de sites web modernes",
+  title: {
+    default: "PhilGood Studio | Création de sites web professionnels",
+    template: "%s | PhilGood Studio",
+  },
+
   description:
-    "PhilGood Studio conçoit des sites web modernes, rapides et professionnels pour les entreprises et les commerçants.",
+    "PhilGood Studio crée des sites web modernes, rapides et optimisés pour Google. Création de sites internet professionnels pour commerçants, artisans et entreprises en Suisse.",
+
+  keywords: [
+    "création site web",
+    "création site internet",
+    "agence web suisse",
+    "site vitrine",
+    "développeur web",
+    "site internet professionnel",
+    "site internet commerçant",
+    "PhilGood Studio",
+    "création site web Vaud",
+    "création site web Lausanne",
+  ],
+
+  authors: [{ name: "PhilGood Studio" }],
+
+  creator: "PhilGood Studio",
+
+  metadataBase: new URL("https://philgoodstudio.ch"),
+
+  openGraph: {
+    title: "PhilGood Studio",
+    description:
+      "Création de sites internet modernes et performants.",
+    url: "https://philgoodstudio.ch",
+    siteName: "PhilGood Studio",
+    locale: "fr_CH",
+    type: "website",
+  },
+
+  robots: {
+    index: true,
+    follow: true,
+  },
 };
 
 export default function RootLayout({
