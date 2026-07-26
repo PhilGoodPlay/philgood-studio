@@ -112,98 +112,98 @@ export default function Home() {
             )}
           </button>
         </div>
+      </header>
 
-        {/* ================= MENU MOBILE ================= */}
+      {/* ================= MENU MOBILE ================= */}
+      {/* Le menu est volontairement placé hors du header pour éviter les problèmes d'affichage sur mobile. */}
+      <div
+        id="mobile-menu"
+        className={`fixed inset-x-0 bottom-0 top-[76px] z-[110] overflow-hidden bg-gradient-to-b from-blue-700 via-blue-800 to-slate-950 text-white shadow-2xl transition-all duration-300 lg:hidden ${
+          menuOpen
+            ? "visible translate-x-0 opacity-100"
+            : "invisible translate-x-full opacity-0"
+        }`}
+      >
+        {/* Décorations de fond */}
+        <div className="pointer-events-none absolute inset-0 overflow-hidden">
+          <div className="absolute -right-24 -top-20 h-72 w-72 rounded-full bg-white/10 blur-3xl" />
+          <div className="absolute -bottom-28 -left-24 h-80 w-80 rounded-full bg-cyan-300/10 blur-3xl" />
+          <div className="absolute inset-0 bg-[linear-gradient(to_right,rgba(255,255,255,0.05)_1px,transparent_1px),linear-gradient(to_bottom,rgba(255,255,255,0.05)_1px,transparent_1px)] bg-[size:38px_38px]" />
+        </div>
 
-        <div
-          id="mobile-menu"
-          className={`fixed inset-x-0 bottom-0 top-[76px] z-[110] overflow-hidden bg-gradient-to-b from-blue-700 via-blue-800 to-slate-950 text-white shadow-2xl transition-all duration-300 lg:hidden ${
-            menuOpen
-              ? "visible translate-x-0 opacity-100"
-              : "invisible translate-x-full opacity-0"
-          }`}
-        >
-          {/* Décorations de fond */}
-          <div className="pointer-events-none absolute inset-0 overflow-hidden">
-            <div className="absolute -right-24 -top-20 h-72 w-72 rounded-full bg-white/10 blur-3xl" />
-            <div className="absolute -bottom-28 -left-24 h-80 w-80 rounded-full bg-cyan-300/10 blur-3xl" />
-            <div className="absolute inset-0 bg-[linear-gradient(to_right,rgba(255,255,255,0.05)_1px,transparent_1px),linear-gradient(to_bottom,rgba(255,255,255,0.05)_1px,transparent_1px)] bg-[size:38px_38px]" />
+        <div className="relative flex h-full flex-col overflow-y-auto px-5 pb-8 pt-7 sm:px-7">
+          <div className="mb-6">
+            <p className="text-xs font-bold uppercase tracking-[0.24em] text-blue-200">
+              Navigation
+            </p>
+            <p className="mt-2 text-sm text-blue-100/90">
+              Accédez rapidement à toutes les pages.
+            </p>
           </div>
 
-          <div className="relative flex h-full flex-col overflow-y-auto px-5 pb-8 pt-7 sm:px-7">
-            <div className="mb-6">
-              <p className="text-xs font-bold uppercase tracking-[0.24em] text-blue-200">
-                Navigation
-              </p>
-              <p className="mt-2 text-sm text-blue-100/90">
-                Accédez rapidement à toutes les pages.
-              </p>
-            </div>
-
-            <nav className="flex flex-col gap-3">
-              {navigation.map((item, index) => (
-                <Link
-                  key={item.name}
-                  href={item.href}
-                  onClick={() => setMenuOpen(false)}
-                  className="flex items-center justify-between rounded-2xl border border-white/15 bg-white/10 px-5 py-4 text-lg font-bold text-white shadow-sm backdrop-blur-sm transition duration-200 hover:border-white/35 hover:bg-white/20 active:scale-[0.98]"
-                  style={{
-                    transitionDelay: menuOpen ? `${index * 35}ms` : "0ms",
-                  }}
-                >
-                  <span>{item.name}</span>
-
-                  <span className="flex h-9 w-9 items-center justify-center rounded-xl bg-white/10">
-                    <svg
-                      viewBox="0 0 24 24"
-                      fill="none"
-                      className="h-5 w-5 text-blue-100"
-                      aria-hidden="true"
-                    >
-                      <path
-                        d="M9 18l6-6-6-6"
-                        stroke="currentColor"
-                        strokeWidth="2.2"
-                        strokeLinecap="round"
-                        strokeLinejoin="round"
-                      />
-                    </svg>
-                  </span>
-                </Link>
-              ))}
-            </nav>
-
-            <div className="mt-8 border-t border-white/20 pt-8">
+          <nav className="flex flex-col gap-3">
+            {navigation.map((item, index) => (
               <Link
-                href="/devis"
+                key={item.name}
+                href={item.href}
                 onClick={() => setMenuOpen(false)}
-                className="flex w-full items-center justify-center gap-2 rounded-2xl bg-white px-6 py-4 text-base font-black text-blue-700 shadow-xl transition duration-200 hover:-translate-y-0.5 hover:bg-blue-50 active:scale-[0.98]"
+                className="flex items-center justify-between rounded-2xl border border-white/15 bg-white/10 px-5 py-4 text-lg font-bold text-white shadow-sm backdrop-blur-sm transition duration-200 hover:border-white/35 hover:bg-white/20 active:scale-[0.98]"
+                style={{
+                  transitionDelay: menuOpen ? `${index * 35}ms` : "0ms",
+                }}
               >
-                Demander un devis
-                <svg
-                  viewBox="0 0 24 24"
-                  fill="none"
-                  className="h-5 w-5"
-                  aria-hidden="true"
-                >
-                  <path
-                    d="M5 12h14M13 6l6 6-6 6"
-                    stroke="currentColor"
-                    strokeWidth="2.2"
-                    strokeLinecap="round"
-                    strokeLinejoin="round"
-                  />
-                </svg>
-              </Link>
+                <span>{item.name}</span>
 
-              <p className="mt-5 text-center text-sm leading-6 text-blue-100">
-                Un projet en tête ? Présentez-nous vos besoins en quelques
-                minutes.
-              </p>
-            </div>
+                <span className="flex h-9 w-9 items-center justify-center rounded-xl bg-white/10">
+                  <svg
+                    viewBox="0 0 24 24"
+                    fill="none"
+                    className="h-5 w-5 text-blue-100"
+                    aria-hidden="true"
+                  >
+                    <path
+                      d="M9 18l6-6-6-6"
+                      stroke="currentColor"
+                      strokeWidth="2.2"
+                      strokeLinecap="round"
+                      strokeLinejoin="round"
+                    />
+                  </svg>
+                </span>
+              </Link>
+            ))}
+          </nav>
+
+          <div className="mt-8 border-t border-white/20 pt-8">
+            <Link
+              href="/devis"
+              onClick={() => setMenuOpen(false)}
+              className="flex w-full items-center justify-center gap-2 rounded-2xl bg-white px-6 py-4 text-base font-black text-blue-700 shadow-xl transition duration-200 hover:-translate-y-0.5 hover:bg-blue-50 active:scale-[0.98]"
+            >
+              Demander un devis
+              <svg
+                viewBox="0 0 24 24"
+                fill="none"
+                className="h-5 w-5"
+                aria-hidden="true"
+              >
+                <path
+                  d="M5 12h14M13 6l6 6-6 6"
+                  stroke="currentColor"
+                  strokeWidth="2.2"
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                />
+              </svg>
+            </Link>
+
+            <p className="mt-5 text-center text-sm leading-6 text-blue-100">
+              Un projet en tête ? Présentez-nous vos besoins en quelques
+              minutes.
+            </p>
           </div>
         </div>
-      </header>
+      </div>
 
       {/* ================= HERO ================= */}
 
