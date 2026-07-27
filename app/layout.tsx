@@ -13,7 +13,7 @@ const geistMono = Geist_Mono({
 });
 
 export const metadata: Metadata = {
-  metadataBase: new URL("https://philgoodstudio.ch"),
+  metadataBase: new URL("https://www.philgoodstudio.ch"),
 
   title: {
     default: "PhilGood Studio | Création de sites web professionnels",
@@ -47,7 +47,7 @@ export const metadata: Metadata = {
     title: "PhilGood Studio | Création de sites web professionnels",
     description:
       "Création de sites internet modernes, rapides et professionnels pour les commerçants, artisans et entreprises.",
-    url: "https://philgoodstudio.ch",
+    url: "https://www.philgoodstudio.ch",
     siteName: "PhilGood Studio",
     locale: "fr_CH",
     type: "website",
