@@ -13,46 +13,51 @@ const geistMono = Geist_Mono({
 });
 
 export const metadata: Metadata = {
+  metadataBase: new URL("https://philgoodstudio.ch"),
+
   title: {
     default: "PhilGood Studio | Création de sites web professionnels",
     template: "%s | PhilGood Studio",
   },
 
   description:
-    "PhilGood Studio crée des sites web modernes, rapides et optimisés pour Google. Création de sites internet professionnels pour commerçants, artisans et entreprises en Suisse.",
-
-  keywords: [
-    "création site web",
-    "création site internet",
-    "agence web suisse",
-    "site vitrine",
-    "développeur web",
-    "site internet professionnel",
-    "site internet commerçant",
-    "PhilGood Studio",
-    "création site web Vaud",
-    "création site web Lausanne",
-  ],
+    "PhilGood Studio crée des sites internet modernes, rapides et professionnels pour les commerçants, artisans et entreprises en Suisse.",
 
   authors: [{ name: "PhilGood Studio" }],
-
   creator: "PhilGood Studio",
+  publisher: "PhilGood Studio",
 
-  metadataBase: new URL("https://philgoodstudio.ch"),
+  alternates: {
+    canonical: "/",
+  },
+
+  robots: {
+    index: true,
+    follow: true,
+    googleBot: {
+      index: true,
+      follow: true,
+      "max-image-preview": "large",
+      "max-snippet": -1,
+      "max-video-preview": -1,
+    },
+  },
 
   openGraph: {
-    title: "PhilGood Studio",
+    title: "PhilGood Studio | Création de sites web professionnels",
     description:
-      "Création de sites internet modernes et performants.",
+      "Création de sites internet modernes, rapides et professionnels pour les commerçants, artisans et entreprises.",
     url: "https://philgoodstudio.ch",
     siteName: "PhilGood Studio",
     locale: "fr_CH",
     type: "website",
   },
 
-  robots: {
-    index: true,
-    follow: true,
+  twitter: {
+    card: "summary_large_image",
+    title: "PhilGood Studio | Création de sites web professionnels",
+    description:
+      "Création de sites internet modernes, rapides et professionnels.",
   },
 };
 
@@ -63,7 +68,7 @@ export default function RootLayout({
 }>) {
   return (
     <html
-      lang="fr"
+      lang="fr-CH"
       className={`${geistSans.variable} ${geistMono.variable} h-full antialiased`}
     >
       <body className="min-h-full flex flex-col">{children}</body>
