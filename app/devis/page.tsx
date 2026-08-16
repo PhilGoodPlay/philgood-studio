@@ -1,3 +1,11 @@
+import type { Metadata } from "next";
+
+export const metadata: Metadata = {
+  robots: {
+    index: false,
+    follow: true,
+  },
+};
 import BackHome from "@/components/BackHome";
 import DevisForm from "@/components/DevisForm";
 
