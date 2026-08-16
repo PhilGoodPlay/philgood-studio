@@ -1,8 +1,13 @@
+
 "use client";
 
 import { ChangeEvent, FormEvent, useState } from "react";
 
 const MAX_TOTAL_FILE_SIZE = 4 * 1024 * 1024;
+const MAX_PHOTOS = 8;
+const MAX_PDFS = 2;
+const MAX_COMPRESSED_PHOTO_SIZE = 430 * 1024;
+const MAX_IMAGE_DIMENSION = 1600;
 
 function isValidEmail(value: string) {
   return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(value.trim());
@@ -24,6 +29,7 @@ export default function DevisForm() {
   const [style, setStyle] = useState("");
   const [additionalInfo, setAdditionalInfo] = useState("");
   const [files, setFiles] = useState<File[]>([]);
+  const [isProcessingFiles, setIsProcessingFiles] = useState(false);
   const [isSending, setIsSending] = useState(false);
   const [sendStatus, setSendStatus] = useState<"idle" | "success" | "error">(
     "idle"
@@ -38,27 +44,230 @@ export default function DevisForm() {
     );
   };
 
-  const handleFiles = (event: ChangeEvent<HTMLInputElement>) => {
-    const selectedFiles = Array.from(event.target.files ?? []);
+  const isPhotoFile = (file: File) =>
+    file.type.startsWith("image/");
 
-    const totalSize = selectedFiles.reduce(
-      (total, file) => total + file.size,
-      0
-    );
+  const isPdfFile = (file: File) =>
+    file.type === "application/pdf" ||
+    file.name.toLowerCase().endsWith(".pdf");
 
-    if (totalSize > MAX_TOTAL_FILE_SIZE) {
-      setFiles([]);
-      setSendStatus("error");
-      setSendMessage(
-        "Les fichiers sont trop volumineux. Pour garantir l’envoi sur mobile, le total doit rester inférieur à 4 Mo."
+  const formatFileSize = (bytes: number) => {
+    if (bytes < 1024) return `${bytes} o`;
+    if (bytes < 1024 * 1024) return `${Math.round(bytes / 1024)} Ko`;
+    return `${(bytes / (1024 * 1024)).toFixed(1)} Mo`;
+  };
+
+  const loadImage = (file: File) =>
+    new Promise<HTMLImageElement>((resolve, reject) => {
+      const image = new Image();
+      const objectUrl = URL.createObjectURL(file);
+
+      image.onload = () => {
+        URL.revokeObjectURL(objectUrl);
+        resolve(image);
+      };
+
+      image.onerror = () => {
+        URL.revokeObjectURL(objectUrl);
+        reject(
+          new Error(
+            `La photo "${file.name}" n’a pas pu être lue. Essayez de l’enregistrer en JPG ou PNG puis réessayez.`
+          )
+        );
+      };
+
+      image.src = objectUrl;
+    });
+
+  const canvasToBlob = (
+    canvas: HTMLCanvasElement,
+    quality: number
+  ) =>
+    new Promise<Blob>((resolve, reject) => {
+      canvas.toBlob(
+        (blob) => {
+          if (blob) {
+            resolve(blob);
+            return;
+          }
+
+          reject(new Error("Impossible de compresser cette photo."));
+        },
+        "image/jpeg",
+        quality
       );
-      event.target.value = "";
+    });
+
+  const compressPhoto = async (file: File) => {
+    const image = await loadImage(file);
+
+    let width = image.naturalWidth || image.width;
+    let height = image.naturalHeight || image.height;
+
+    if (!width || !height) {
+      throw new Error(`Dimensions invalides pour "${file.name}".`);
+    }
+
+    const largestSide = Math.max(width, height);
+
+    if (largestSide > MAX_IMAGE_DIMENSION) {
+      const ratio = MAX_IMAGE_DIMENSION / largestSide;
+      width = Math.round(width * ratio);
+      height = Math.round(height * ratio);
+    }
+
+    const canvas = document.createElement("canvas");
+    const context = canvas.getContext("2d");
+
+    if (!context) {
+      throw new Error("La compression des photos n’est pas disponible.");
+    }
+
+    canvas.width = width;
+    canvas.height = height;
+
+    context.fillStyle = "#ffffff";
+    context.fillRect(0, 0, width, height);
+    context.drawImage(image, 0, 0, width, height);
+
+    let quality = 0.82;
+    let blob = await canvasToBlob(canvas, quality);
+
+    while (
+      blob.size > MAX_COMPRESSED_PHOTO_SIZE &&
+      quality > 0.48
+    ) {
+      quality -= 0.08;
+      blob = await canvasToBlob(canvas, quality);
+    }
+
+    if (blob.size > MAX_COMPRESSED_PHOTO_SIZE) {
+      const reducedWidth = Math.max(700, Math.round(width * 0.78));
+      const reducedHeight = Math.max(700, Math.round(height * 0.78));
+
+      const smallCanvas = document.createElement("canvas");
+      const smallContext = smallCanvas.getContext("2d");
+
+      if (!smallContext) {
+        throw new Error("La compression des photos n’est pas disponible.");
+      }
+
+      smallCanvas.width = reducedWidth;
+      smallCanvas.height = reducedHeight;
+
+      smallContext.fillStyle = "#ffffff";
+      smallContext.fillRect(0, 0, reducedWidth, reducedHeight);
+      smallContext.drawImage(
+        image,
+        0,
+        0,
+        reducedWidth,
+        reducedHeight
+      );
+
+      blob = await canvasToBlob(smallCanvas, 0.62);
+    }
+
+    const cleanName =
+      file.name.replace(/\.[^/.]+$/, "").trim() || "photo";
+
+    return new File(
+      [blob],
+      `${cleanName}-compressee.jpg`,
+      {
+        type: "image/jpeg",
+        lastModified: Date.now(),
+      }
+    );
+  };
+
+  const handleFiles = async (
+    event: ChangeEvent<HTMLInputElement>
+  ) => {
+    const input = event.currentTarget;
+    const selectedFiles = Array.from(input.files ?? []);
+
+    input.value = "";
+
+    if (selectedFiles.length === 0) {
       return;
     }
 
     setSendStatus("idle");
     setSendMessage("");
-    setFiles(selectedFiles);
+    setIsProcessingFiles(true);
+
+    try {
+      const existingPhotos = files.filter(isPhotoFile);
+      const existingPdfs = files.filter(isPdfFile);
+
+      const selectedPhotos = selectedFiles.filter(isPhotoFile);
+      const selectedPdfs = selectedFiles.filter(isPdfFile);
+      const unsupportedFiles = selectedFiles.filter(
+        (file) => !isPhotoFile(file) && !isPdfFile(file)
+      );
+
+      if (unsupportedFiles.length > 0) {
+        throw new Error(
+          "Certains fichiers ne sont pas acceptés. Utilisez uniquement des photos ou des PDF."
+        );
+      }
+
+      if (existingPhotos.length + selectedPhotos.length > MAX_PHOTOS) {
+        throw new Error(
+          `Vous pouvez ajouter au maximum ${MAX_PHOTOS} photos. Supprimez-en une avant d’en ajouter d’autres.`
+        );
+      }
+
+      if (existingPdfs.length + selectedPdfs.length > MAX_PDFS) {
+        throw new Error(
+          `Vous pouvez ajouter au maximum ${MAX_PDFS} fichiers PDF.`
+        );
+      }
+
+      const compressedPhotos: File[] = [];
+
+      for (const photo of selectedPhotos) {
+        compressedPhotos.push(await compressPhoto(photo));
+      }
+
+      const nextFiles = [
+        ...files,
+        ...compressedPhotos,
+        ...selectedPdfs,
+      ];
+
+      const totalSize = nextFiles.reduce(
+        (total, file) => total + file.size,
+        0
+      );
+
+      if (totalSize > MAX_TOTAL_FILE_SIZE) {
+        throw new Error(
+          "Même après compression, le total dépasse 4 Mo. Supprimez une photo ou un PDF puis réessayez."
+        );
+      }
+
+      setFiles(nextFiles);
+    } catch (error) {
+      setSendStatus("error");
+      setSendMessage(
+        error instanceof Error
+          ? error.message
+          : "Impossible d’ajouter ces fichiers."
+      );
+    } finally {
+      setIsProcessingFiles(false);
+    }
+  };
+
+  const removeFile = (indexToRemove: number) => {
+    setFiles((currentFiles) =>
+      currentFiles.filter((_, index) => index !== indexToRemove)
+    );
+
+    setSendStatus("idle");
+    setSendMessage("");
   };
 
   const goToNextStep = () => {
@@ -121,7 +330,7 @@ export default function DevisForm() {
   const handleSubmit = async (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
 
-    if (isSending) {
+    if (isSending || isProcessingFiles) {
       return;
     }
 
@@ -606,39 +815,64 @@ export default function DevisForm() {
       {/* ================= ÉTAPE 11 ================= */}
 
       {step === 11 && (
-
         <div>
-
           <h2 className="text-3xl font-bold text-gray-900">
-
-            Ajoutez vos fichiers
-
+            Ajoutez vos photos et documents
           </h2>
 
-          <p className="mt-3 text-gray-600">
-
-            Vous pouvez ajouter votre logo, des photos, une carte de visite ou tout autre document.
-
+          <p className="mt-3 leading-7 text-gray-600">
+            Sur téléphone, appuyez sur la zone ci-dessous puis choisissez vos
+            photos directement dans votre photothèque ou votre galerie.
           </p>
 
-          <label className="mt-8 flex cursor-pointer flex-col items-center justify-center rounded-3xl border-2 border-dashed border-blue-300 bg-blue-50 p-12 transition hover:bg-blue-100">
+          <div className="mt-6 grid gap-3 rounded-2xl border border-blue-100 bg-blue-50 p-4 text-sm text-blue-900 sm:grid-cols-3">
+            <div className="rounded-xl bg-white/70 p-3">
+              <p className="font-bold">📸 Photos</p>
+              <p className="mt-1 text-blue-700">
+                Maximum {MAX_PHOTOS} photos
+              </p>
+            </div>
 
+            <div className="rounded-xl bg-white/70 p-3">
+              <p className="font-bold">📄 PDF</p>
+              <p className="mt-1 text-blue-700">
+                Maximum {MAX_PDFS} documents
+              </p>
+            </div>
+
+            <div className="rounded-xl bg-white/70 p-3">
+              <p className="font-bold">✨ Compression</p>
+              <p className="mt-1 text-blue-700">
+                Les photos sont réduites automatiquement
+              </p>
+            </div>
+          </div>
+
+          <label
+            className={`mt-8 flex flex-col items-center justify-center rounded-3xl border-2 border-dashed p-8 text-center transition sm:p-12 ${
+              isProcessingFiles
+                ? "cursor-wait border-gray-300 bg-gray-100"
+                : "cursor-pointer border-blue-300 bg-blue-50 hover:bg-blue-100"
+            }`}
+          >
             <span className="text-6xl">
-
-              📁
-
+              {isProcessingFiles ? "⏳" : "🖼️"}
             </span>
 
             <span className="mt-5 text-xl font-semibold text-gray-900">
-
-              Cliquez ici pour ajouter vos fichiers
-
+              {isProcessingFiles
+                ? "Compression des photos..."
+                : "Choisir des photos ou des PDF"}
             </span>
 
-            <span className="mt-2 text-gray-600">
+            <span className="mt-2 max-w-xl text-gray-600">
+              iPhone / Android : choisissez votre photothèque ou votre galerie.
+              Vous pourrez supprimer chaque fichier avec la petite croix.
+            </span>
 
-              Images et PDF — 4 Mo maximum au total
-
+            <span className="mt-3 rounded-full bg-white px-4 py-2 text-xs font-bold text-blue-700 shadow-sm">
+              {files.filter(isPhotoFile).length}/{MAX_PHOTOS} photos ·{" "}
+              {files.filter(isPdfFile).length}/{MAX_PDFS} PDF
             </span>
 
             <input
@@ -646,28 +880,88 @@ export default function DevisForm() {
               multiple
               accept="image/*,.pdf,application/pdf"
               onChange={handleFiles}
+              disabled={isProcessingFiles}
               className="hidden"
             />
-
           </label>
 
           {files.length > 0 && (
-            <div className="mt-6 rounded-2xl border border-gray-200 bg-gray-50 p-5">
-              <p className="font-semibold text-gray-900">
-                {files.length} fichier{files.length > 1 ? "s" : ""} sélectionné
-                {files.length > 1 ? "s" : ""} :
-              </p>
+            <div className="mt-6 rounded-2xl border border-gray-200 bg-gray-50 p-4 sm:p-5">
+              <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
+                <div>
+                  <p className="font-semibold text-gray-900">
+                    {files.length} fichier{files.length > 1 ? "s" : ""} prêt
+                    {files.length > 1 ? "s" : ""} à être envoyé
+                    {files.length > 1 ? "s" : ""}
+                  </p>
 
-              <ul className="mt-3 space-y-2 text-gray-700">
-                {files.map((file) => (
-                  <li key={`${file.name}-${file.lastModified}`}>• {file.name}</li>
-                ))}
+                  <p className="mt-1 text-sm text-gray-500">
+                    Taille totale :{" "}
+                    {formatFileSize(
+                      files.reduce((total, file) => total + file.size, 0)
+                    )}{" "}
+                    / 4 Mo
+                  </p>
+                </div>
+
+                <button
+                  type="button"
+                  onClick={() => {
+                    setFiles([]);
+                    setSendStatus("idle");
+                    setSendMessage("");
+                  }}
+                  className="w-fit rounded-xl border border-red-200 bg-white px-3 py-2 text-sm font-semibold text-red-600 transition hover:bg-red-50"
+                >
+                  Tout supprimer
+                </button>
+              </div>
+
+              <ul className="mt-4 space-y-3">
+                {files.map((file, index) => {
+                  const isPhoto = isPhotoFile(file);
+
+                  return (
+                    <li
+                      key={`${file.name}-${file.lastModified}-${index}`}
+                      className="flex items-center gap-3 rounded-2xl border border-gray-200 bg-white p-3 shadow-sm"
+                    >
+                      <span className="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl bg-gray-100 text-xl">
+                        {isPhoto ? "🖼️" : "📄"}
+                      </span>
+
+                      <div className="min-w-0 flex-1">
+                        <p className="truncate text-sm font-semibold text-gray-900">
+                          {file.name}
+                        </p>
+
+                        <p className="mt-1 text-xs text-gray-500">
+                          {isPhoto ? "Photo compressée" : "Document PDF"} ·{" "}
+                          {formatFileSize(file.size)}
+                        </p>
+                      </div>
+
+                      <button
+                        type="button"
+                        onClick={() => removeFile(index)}
+                        className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full border border-red-200 bg-red-50 text-lg font-bold text-red-600 transition hover:bg-red-100"
+                        aria-label={`Supprimer ${file.name}`}
+                        title="Supprimer"
+                      >
+                        ×
+                      </button>
+                    </li>
+                  );
+                })}
               </ul>
             </div>
           )}
 
+          <p className="mt-4 text-xs leading-5 text-gray-500">
+            Les photos sont converties en JPG et compressées automatiquement
+            avant l’envoi afin de rendre le formulaire plus fiable sur mobile.
+          </p>
         </div>
-
       )}
 
       {/* ================= ÉTAPE 12 ================= */}
@@ -738,12 +1032,14 @@ export default function DevisForm() {
 
           <button
             type="submit"
-            disabled={isSending || sendStatus === "success"}
+            disabled={isSending || isProcessingFiles || sendStatus === "success"}
             className="w-full rounded-xl bg-green-600 px-8 py-3 font-semibold text-white transition hover:bg-green-700 disabled:cursor-not-allowed disabled:opacity-60 sm:w-auto"
           >
 
-            {isSending
-              ? "Envoi en cours..."
+            {isProcessingFiles
+              ? "Compression en cours..."
+              : isSending
+                ? "Envoi en cours..."
               : sendStatus === "success"
                 ? "Demande envoyée ✓"
                 : "Envoyer ma demande"}
