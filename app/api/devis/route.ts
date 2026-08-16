@@ -1,18 +1,16 @@
-
 import { NextResponse } from "next/server";
 import { Resend } from "resend";
 
 export const runtime = "nodejs";
+export const dynamic = "force-dynamic";
 
 const resend = new Resend(process.env.RESEND_API_KEY);
 
 const DESTINATION_EMAIL = "a.philippe.ch@icloud.com";
-const MAX_TOTAL_FILE_SIZE = 10 * 1024 * 1024;
-const ALLOWED_FILE_TYPES = new Set([
-  "image/png",
-  "image/jpeg",
-  "application/pdf",
-]);
+
+// Vercel limite le corps d'une requête vers une Function à 4,5 Mo.
+// On garde une marge pour les champs du formulaire et l'encodage multipart.
+const MAX_TOTAL_FILE_SIZE = 4 * 1024 * 1024;
 
 function text(value: FormDataEntryValue | null) {
   return typeof value === "string" ? value.trim() : "";
@@ -31,6 +29,10 @@ function display(value: string) {
   return value ? escapeHtml(value) : "Non renseigné";
 }
 
+function isAllowedFile(file: File) {
+  return file.type.startsWith("image/") || file.type === "application/pdf";
+}
+
 export async function POST(request: Request) {
   try {
     if (!process.env.RESEND_API_KEY) {
@@ -38,7 +40,7 @@ export async function POST(request: Request) {
         {
           success: false,
           message:
-            "La clé Resend est absente. Vérifiez le fichier .env.local puis redémarrez le serveur.",
+            "La configuration d’envoi est incomplète. Veuillez réessayer plus tard.",
         },
         { status: 500 }
       );
@@ -95,7 +97,10 @@ export async function POST(request: Request) {
 
     const uploadedFiles = formData
       .getAll("files")
-      .filter((entry): entry is File => entry instanceof File && entry.size > 0);
+      .filter(
+        (entry): entry is File =>
+          entry instanceof File && entry.size > 0
+      );
 
     const totalFileSize = uploadedFiles.reduce(
       (total, file) => total + file.size,
@@ -107,14 +112,14 @@ export async function POST(request: Request) {
         {
           success: false,
           message:
-            "Les pièces jointes sont trop volumineuses. Le total doit rester inférieur à 10 Mo.",
+            "Les pièces jointes sont trop volumineuses. Pour garantir l’envoi sur mobile, le total doit rester inférieur à 4 Mo.",
         },
-        { status: 400 }
+        { status: 413 }
       );
     }
 
     const invalidFile = uploadedFiles.find(
-      (file) => !ALLOWED_FILE_TYPES.has(file.type)
+      (file) => !isAllowedFile(file)
     );
 
     if (invalidFile) {
@@ -122,7 +127,7 @@ export async function POST(request: Request) {
         {
           success: false,
           message:
-            "Un fichier n’est pas accepté. Utilisez uniquement des fichiers PNG, JPG, JPEG ou PDF.",
+            "Un fichier n’est pas accepté. Utilisez uniquement des images ou des fichiers PDF.",
         },
         { status: 400 }
       );
@@ -130,7 +135,7 @@ export async function POST(request: Request) {
 
     const attachments = await Promise.all(
       uploadedFiles.map(async (file) => ({
-        filename: file.name,
+        filename: file.name || "piece-jointe",
         content: Buffer.from(await file.arrayBuffer()),
       }))
     );
@@ -198,17 +203,25 @@ export async function POST(request: Request) {
         {
           success: false,
           message:
-            "Resend a refusé l’envoi. Vérifiez l’adresse d’expédition et la configuration de votre compte.",
+            "L’envoi de la demande a échoué. Veuillez réessayer dans quelques instants.",
         },
         { status: 500 }
       );
     }
 
-    return NextResponse.json({
-      success: true,
-      message: "Votre demande a bien été envoyée. Merci !",
-      id: data?.id,
-    });
+    return NextResponse.json(
+      {
+        success: true,
+        message: "Votre demande a bien été envoyée. Merci !",
+        id: data?.id,
+      },
+      {
+        status: 200,
+        headers: {
+          "Cache-Control": "no-store",
+        },
+      }
+    );
   } catch (error) {
     console.error("Erreur API devis :", error);
 
