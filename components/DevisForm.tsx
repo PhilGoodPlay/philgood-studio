@@ -4,8 +4,6 @@
 import { ChangeEvent, FormEvent, useState } from "react";
 
 const MAX_TOTAL_FILE_SIZE = 4 * 1024 * 1024;
-const MAX_PHOTOS = 8;
-const MAX_PDFS = 2;
 const MAX_COMPRESSED_PHOTO_SIZE = 430 * 1024;
 const MAX_IMAGE_DIMENSION = 1600;
 
@@ -198,9 +196,6 @@ export default function DevisForm() {
     setIsProcessingFiles(true);
 
     try {
-      const existingPhotos = files.filter(isPhotoFile);
-      const existingPdfs = files.filter(isPdfFile);
-
       const selectedPhotos = selectedFiles.filter(isPhotoFile);
       const selectedPdfs = selectedFiles.filter(isPdfFile);
       const unsupportedFiles = selectedFiles.filter(
@@ -210,18 +205,6 @@ export default function DevisForm() {
       if (unsupportedFiles.length > 0) {
         throw new Error(
           "Certains fichiers ne sont pas acceptés. Utilisez uniquement des photos ou des PDF."
-        );
-      }
-
-      if (existingPhotos.length + selectedPhotos.length > MAX_PHOTOS) {
-        throw new Error(
-          `Vous pouvez ajouter au maximum ${MAX_PHOTOS} photos. Supprimez-en une avant d’en ajouter d’autres.`
-        );
-      }
-
-      if (existingPdfs.length + selectedPdfs.length > MAX_PDFS) {
-        throw new Error(
-          `Vous pouvez ajouter au maximum ${MAX_PDFS} fichiers PDF.`
         );
       }
 
@@ -237,18 +220,19 @@ export default function DevisForm() {
         ...selectedPdfs,
       ];
 
+      setFiles(nextFiles);
+
       const totalSize = nextFiles.reduce(
         (total, file) => total + file.size,
         0
       );
 
       if (totalSize > MAX_TOTAL_FILE_SIZE) {
-        throw new Error(
-          "Même après compression, le total dépasse 4 Mo. Supprimez une photo ou un PDF puis réessayez."
+        setSendStatus("error");
+        setSendMessage(
+          "Vos fichiers dépassent la limite de 4 Mo. Ils restent enregistrés dans votre sélection : supprimez simplement une ou plusieurs photos ou un PDF avec la petite croix jusqu’à repasser sous 4 Mo."
         );
       }
-
-      setFiles(nextFiles);
     } catch (error) {
       setSendStatus("error");
       setSendMessage(
@@ -262,12 +246,28 @@ export default function DevisForm() {
   };
 
   const removeFile = (indexToRemove: number) => {
-    setFiles((currentFiles) =>
-      currentFiles.filter((_, index) => index !== indexToRemove)
-    );
+    setFiles((currentFiles) => {
+      const nextFiles = currentFiles.filter(
+        (_, index) => index !== indexToRemove
+      );
 
-    setSendStatus("idle");
-    setSendMessage("");
+      const totalSize = nextFiles.reduce(
+        (total, file) => total + file.size,
+        0
+      );
+
+      if (totalSize > MAX_TOTAL_FILE_SIZE) {
+        setSendStatus("error");
+        setSendMessage(
+          "Vos fichiers dépassent encore la limite de 4 Mo. Supprimez encore un ou plusieurs fichiers pour continuer."
+        );
+      } else {
+        setSendStatus("idle");
+        setSendMessage("");
+      }
+
+      return nextFiles;
+    });
   };
 
   const goToNextStep = () => {
@@ -353,7 +353,7 @@ export default function DevisForm() {
     if (totalFileSize > MAX_TOTAL_FILE_SIZE) {
       setSendStatus("error");
       setSendMessage(
-        "Les fichiers sont trop volumineux. Le total doit rester inférieur à 4 Mo."
+        "Impossible de continuer : vos fichiers dépassent 4 Mo au total. Ils restent dans votre sélection. Supprimez simplement un ou plusieurs fichiers avec la petite croix jusqu’à repasser sous 4 Mo."
       );
       return;
     }
@@ -825,18 +825,11 @@ export default function DevisForm() {
             photos directement dans votre photothèque ou votre galerie.
           </p>
 
-          <div className="mt-6 grid gap-3 rounded-2xl border border-blue-100 bg-blue-50 p-4 text-sm text-blue-900 sm:grid-cols-3">
+          <div className="mt-6 grid gap-3 rounded-2xl border border-blue-100 bg-blue-50 p-4 text-sm text-blue-900 sm:grid-cols-2">
             <div className="rounded-xl bg-white/70 p-3">
-              <p className="font-bold">📸 Photos</p>
+              <p className="font-bold">📦 Limite totale</p>
               <p className="mt-1 text-blue-700">
-                Maximum {MAX_PHOTOS} photos
-              </p>
-            </div>
-
-            <div className="rounded-xl bg-white/70 p-3">
-              <p className="font-bold">📄 PDF</p>
-              <p className="mt-1 text-blue-700">
-                Maximum {MAX_PDFS} documents
+                4 Mo maximum pour l’ensemble des fichiers
               </p>
             </div>
 
@@ -871,8 +864,11 @@ export default function DevisForm() {
             </span>
 
             <span className="mt-3 rounded-full bg-white px-4 py-2 text-xs font-bold text-blue-700 shadow-sm">
-              {files.filter(isPhotoFile).length}/{MAX_PHOTOS} photos ·{" "}
-              {files.filter(isPdfFile).length}/{MAX_PDFS} PDF
+              Taille totale :{" "}
+              {formatFileSize(
+                files.reduce((total, file) => total + file.size, 0)
+              )}{" "}
+              / 4 Mo
             </span>
 
             <input
@@ -884,6 +880,20 @@ export default function DevisForm() {
               className="hidden"
             />
           </label>
+
+          {files.reduce((total, file) => total + file.size, 0) >
+            MAX_TOTAL_FILE_SIZE && (
+            <div className="mt-5 rounded-2xl border border-red-200 bg-red-50 p-4 text-red-800">
+              <p className="font-bold">
+                ⚠️ Limite de 4 Mo dépassée
+              </p>
+              <p className="mt-1 text-sm leading-6">
+                Vos fichiers restent sélectionnés. Supprimez simplement une ou
+                plusieurs photos ou un PDF avec la petite croix jusqu’à ce que
+                la taille totale repasse sous 4 Mo.
+              </p>
+            </div>
+          )}
 
           {files.length > 0 && (
             <div className="mt-6 rounded-2xl border border-gray-200 bg-gray-50 p-4 sm:p-5">
@@ -1032,7 +1042,13 @@ export default function DevisForm() {
 
           <button
             type="submit"
-            disabled={isSending || isProcessingFiles || sendStatus === "success"}
+            disabled={
+              isSending ||
+              isProcessingFiles ||
+              sendStatus === "success" ||
+              files.reduce((total, file) => total + file.size, 0) >
+                MAX_TOTAL_FILE_SIZE
+            }
             className="w-full rounded-xl bg-green-600 px-8 py-3 font-semibold text-white transition hover:bg-green-700 disabled:cursor-not-allowed disabled:opacity-60 sm:w-auto"
           >
 
