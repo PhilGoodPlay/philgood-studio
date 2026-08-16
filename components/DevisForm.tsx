@@ -1,9 +1,12 @@
-
-
-
 "use client";
 
 import { ChangeEvent, FormEvent, useState } from "react";
+
+const MAX_TOTAL_FILE_SIZE = 4 * 1024 * 1024;
+
+function isValidEmail(value: string) {
+  return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(value.trim());
+}
 
 export default function DevisForm() {
 
@@ -36,13 +39,113 @@ export default function DevisForm() {
   };
 
   const handleFiles = (event: ChangeEvent<HTMLInputElement>) => {
-    setFiles(Array.from(event.target.files ?? []));
+    const selectedFiles = Array.from(event.target.files ?? []);
+
+    const totalSize = selectedFiles.reduce(
+      (total, file) => total + file.size,
+      0
+    );
+
+    if (totalSize > MAX_TOTAL_FILE_SIZE) {
+      setFiles([]);
+      setSendStatus("error");
+      setSendMessage(
+        "Les fichiers sont trop volumineux. Pour garantir l’envoi sur mobile, le total doit rester inférieur à 4 Mo."
+      );
+      event.target.value = "";
+      return;
+    }
+
+    setSendStatus("idle");
+    setSendMessage("");
+    setFiles(selectedFiles);
+  };
+
+  const goToNextStep = () => {
+    setSendStatus("idle");
+    setSendMessage("");
+
+    if (step === 1 && !companyName.trim()) {
+      setSendStatus("error");
+      setSendMessage("Indiquez le nom de votre entreprise pour continuer.");
+      return;
+    }
+
+    if (step === 2 && !activity) {
+      setSendStatus("error");
+      setSendMessage("Choisissez votre activité pour continuer.");
+      return;
+    }
+
+    if (step === 3 && !fullName.trim()) {
+      setSendStatus("error");
+      setSendMessage("Indiquez votre prénom et votre nom pour continuer.");
+      return;
+    }
+
+    if (step === 4 && !phone.trim()) {
+      setSendStatus("error");
+      setSendMessage("Indiquez votre numéro de téléphone pour continuer.");
+      return;
+    }
+
+    if (step === 5) {
+      if (!email.trim()) {
+        setSendStatus("error");
+        setSendMessage("Indiquez votre adresse e-mail pour continuer.");
+        return;
+      }
+
+      if (!isValidEmail(email)) {
+        setSendStatus("error");
+        setSendMessage("L’adresse e-mail renseignée n’est pas valide.");
+        return;
+      }
+    }
+
+    if (step === 6 && !logo) {
+      setSendStatus("error");
+      setSendMessage("Choisissez une réponse concernant votre logo.");
+      return;
+    }
+
+    if (step === 7 && !photos) {
+      setSendStatus("error");
+      setSendMessage("Choisissez une réponse concernant vos photos.");
+      return;
+    }
+
+    setStep((currentStep) => Math.min(currentStep + 1, 12));
   };
 
   const handleSubmit = async (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
 
     if (isSending) {
+      return;
+    }
+
+    if (!companyName.trim() || !fullName.trim() || !email.trim()) {
+      setSendStatus("error");
+      setSendMessage(
+        "Vérifiez le nom de l’entreprise, votre nom et votre adresse e-mail."
+      );
+      return;
+    }
+
+    if (!isValidEmail(email)) {
+      setSendStatus("error");
+      setSendMessage("L’adresse e-mail renseignée n’est pas valide.");
+      return;
+    }
+
+    const totalFileSize = files.reduce((total, file) => total + file.size, 0);
+
+    if (totalFileSize > MAX_TOTAL_FILE_SIZE) {
+      setSendStatus("error");
+      setSendMessage(
+        "Les fichiers sont trop volumineux. Le total doit rester inférieur à 4 Mo."
+      );
       return;
     }
 
@@ -71,12 +174,24 @@ export default function DevisForm() {
       const response = await fetch("/api/devis", {
         method: "POST",
         body: formData,
+        credentials: "same-origin",
+        cache: "no-store",
       });
 
-      const result = (await response.json()) as {
-        success?: boolean;
-        message?: string;
-      };
+      const contentType = response.headers.get("content-type") || "";
+
+      const result = contentType.includes("application/json")
+        ? ((await response.json()) as {
+            success?: boolean;
+            message?: string;
+          })
+        : {
+            success: false,
+            message:
+              response.status === 413
+                ? "Les fichiers sont trop volumineux pour être envoyés. Réduisez leur taille puis réessayez."
+                : "Le serveur n’a pas pu traiter la demande. Réessayez dans quelques instants.",
+          };
 
       if (!response.ok || !result.success) {
         throw new Error(
@@ -104,7 +219,7 @@ export default function DevisForm() {
 
     <form
       onSubmit={handleSubmit}
-      className="rounded-3xl border border-gray-200 bg-white p-10 shadow-xl"
+      className="rounded-3xl border border-gray-200 bg-white p-5 shadow-xl sm:p-8 lg:p-10"
     >
 
       {/* Barre de progression */}
@@ -522,14 +637,14 @@ export default function DevisForm() {
 
             <span className="mt-2 text-gray-600">
 
-              PNG, JPG, PDF...
+              Images et PDF — 4 Mo maximum au total
 
             </span>
 
             <input
               type="file"
               multiple
-              accept=".png,.jpg,.jpeg,.pdf"
+              accept="image/*,.pdf,application/pdf"
               onChange={handleFiles}
               className="hidden"
             />
@@ -594,13 +709,13 @@ export default function DevisForm() {
 
       {/* ================= BOUTONS ================= */}
 
-      <div className="mt-12 flex items-center justify-between">
+      <div className="mt-12 flex flex-col-reverse gap-3 sm:flex-row sm:items-center sm:justify-between">
 
         <button
           type="button"
           onClick={() => step > 1 && setStep(step - 1)}
           disabled={step === 1}
-          className="rounded-xl border border-gray-300 px-6 py-3 font-semibold text-gray-700 transition hover:bg-gray-100 disabled:cursor-not-allowed disabled:opacity-40"
+          className="w-full rounded-xl border border-gray-300 px-6 py-3 font-semibold text-gray-700 transition hover:bg-gray-100 disabled:cursor-not-allowed disabled:opacity-40 sm:w-auto"
         >
 
           ← Retour
@@ -611,8 +726,8 @@ export default function DevisForm() {
 
           <button
             type="button"
-            onClick={() => setStep(step + 1)}
-            className="rounded-xl bg-blue-600 px-8 py-3 font-semibold text-white transition hover:bg-blue-700"
+            onClick={goToNextStep}
+            className="w-full rounded-xl bg-blue-600 px-8 py-3 font-semibold text-white transition hover:bg-blue-700 sm:w-auto"
           >
 
             Suivant →
@@ -624,7 +739,7 @@ export default function DevisForm() {
           <button
             type="submit"
             disabled={isSending || sendStatus === "success"}
-            className="rounded-xl bg-green-600 px-8 py-3 font-semibold text-white transition hover:bg-green-700 disabled:cursor-not-allowed disabled:opacity-60"
+            className="w-full rounded-xl bg-green-600 px-8 py-3 font-semibold text-white transition hover:bg-green-700 disabled:cursor-not-allowed disabled:opacity-60 sm:w-auto"
           >
 
             {isSending
